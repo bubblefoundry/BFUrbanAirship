@@ -28,16 +28,14 @@ object APS {
   def apply(alert: String): APSString = APSString(alert, None, None)
   def apply(alert: Map[String, Any]): APSDict = APSDict(alert, None, None)
 }
-
-
-case class APSString(alert: String, badge: Option[Int], sound: Option[String]) extends APS
+// the badge string can be: "auto", "+1", "-1", or any valid Int. Its absence removes any existing badge.
+case class APSString(alert: String, badge: Option[String], sound: Option[String]) extends APS
 object APSString {
-  def apply(alert: String, badge: Int, sound: String): APSString = APSString(alert, Some(badge), Some(sound))
+  def apply(alert: String, badge: String, sound: String): APSString = APSString(alert, Some(badge), Some(sound))
 }
-
-case class APSDict(alert: Map[String, Any], badge: Option[Int], sound: Option[String]) extends APS
+case class APSDict(alert: Map[String, Any], badge: Option[String], sound: Option[String]) extends APS
 object APSDict {
-  def apply(alert: Map[String, Any], badge: Int, sound: String): APSDict = APSDict(alert, Some(badge), Some(sound))
+  def apply(alert: Map[String, Any], badge: String, sound: String): APSDict = APSDict(alert, Some(badge), Some(sound))
 }
 
 case class PushMessage[T <: APS](device_tokens: Option[List[String]], aliases: Option[List[String]], tags: Option[List[String]], schedule_for: Option[List[java.util.Date]], exclude_tokens: Option[List[String]], aps: Option[T])
@@ -75,6 +73,37 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
   
+  def pushMany[T <: APS](messages: List[PushMessage[T]]): Box[String] = app_master_secret.flatMap(secret => {
+    import LiftJsonHelpers._
+    val req = pushReq / "batch" / "" << write(messages) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
+    Helpers.tryo(http(req as_str))
+  }) ?~ "App Master Secret Required"
+  
+  def pushAll[T <: APS](message: PushMessage[T]): Box[String] = app_master_secret.flatMap(secret => {
+    import LiftJsonHelpers._
+    val req = pushReq / "broadcast" / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
+    Helpers.tryo(http(req as_str))
+  }) ?~ "App Master Secret Required"
+  
+  // delete scheduled with POST to https://go.urbanairship.com/api/push/scheduled/
+  
+  // updated scheduled with https://go.urbanairship.com/api/push/scheduled/alias/<your alias>
+    
+/*
+  def pushAll[T <: APS](message: PushMessage[T]): Box[String] = (for (
+    secret <- app_master_secret ?~! "App Master Secret Required"
+    message <- Full(message) ?~! ""
+  ) yield {
+    Helpers.tryo(http(req as_str))
+  }).flatMap(resp => resp)
+  
+  app_master_secret.flatMap(secret => {
+    import LiftJsonHelpers._
+    val req = pushReq / "broadcast" / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
+    Helpers.tryo(http(req as_str))
+  }) ?~ "App Master Secret Required"
+*/
+
   def statistics(start: String, end: String): Box[List[HourlyStatistics]] = app_master_secret.flatMap(secret => {
     val req = statisticsReq <<? Map("start" -> start, "end" -> end) as (app_token, secret) 
     Helpers.tryo(http(req ># (json => {
