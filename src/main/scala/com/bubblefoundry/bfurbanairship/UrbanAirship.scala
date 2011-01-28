@@ -16,12 +16,14 @@ object LiftJsonHelpers {
 }
 
 case class Quiettime(start: String, end: String)
-case class Device(device_token: String, alias: Option[String], tags: Option[List[String]], badge: Option[Int], quiettime: Option[Quiettime], tz: Option[String], last_registration: Option[java.util.Date])
+case class Device(device_token: String, alias: Option[String], tags: Option[List[String]], badge: Option[Int], quiettime: Option[Quiettime], tz: Option[String], last_registration: Option[java.util.Date], active: Option[Boolean])
 object Device {
-  def apply(device_token: String): Device = Device(device_token, None, None, None, None, None, None)
-  def apply(device_token: String, alias: String): Device = Device(device_token, Some(alias), None, None, None, None, None)
-  def apply(device_token: String, alias: Option[String], tags: Option[List[String]], badge: Option[Int], quiettime: Option[Quiettime], tz: Option[String]): Device = Device(device_token, alias, tags, badge, quiettime, tz, None)
+  def apply(device_token: String): Device = Device(device_token, None, None, None, None, None, None, None)
+  def apply(device_token: String, alias: String): Device = Device(device_token, Some(alias), None, None, None, None, None, None)
+  def apply(device_token: String, alias: Option[String], tags: Option[List[String]], badge: Option[Int], quiettime: Option[Quiettime], tz: Option[String]): Device = Device(device_token, alias, tags, badge, quiettime, tz, None, None)
 }
+
+case class DevicesPage(device_tokens_count: Int, device_tokens: List[Device], current_page: Int, num_pages: Int, active_device_tokens_count: Int)
 
 abstract trait APS
 object APS {
@@ -52,7 +54,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   lazy val apiReq = urbanairshipReq / "api"
   lazy val pushReq = apiReq / "push"
 
-  lazy val registerReq = apiReq / "device_tokens"
+  lazy val devicesReq = apiReq / "device_tokens"
   lazy val statisticsReq = pushReq / "stats"
   
   def this(app_token: String, app_secret: Option[String], app_master_secret: Option[String]) = {
@@ -61,11 +63,22 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
 
   def register_device(device: Device): Box[Device] = app_secret.flatMap(secret => {
     import LiftJsonHelpers._
-    val req = registerReq / device.device_token <<< write(device) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
+    val req = devicesReq / device.device_token <<< write(device) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req ># (json => {
       json.extract[Device]
     })))
   }) ?~ "App Secret required"
+  
+  // GET device 
+  
+  // get device tokens
+  def devices: Box[DevicesPage] = app_master_secret.flatMap(secret => {
+    import LiftJsonHelpers._
+    val req = devicesReq / "" as (app_token, secret)
+    Helpers.tryo(http(req ># (json => {
+      json.extract[DevicesPage]
+    })))
+  }) ?~ "App Master Secret Required"
   
   def push[T <: APS](message: PushMessage[T]): Box[String] = app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
