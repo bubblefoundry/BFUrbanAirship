@@ -112,12 +112,40 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
   
+  /*
+  [
+    {
+        "device_tokens": [
+            "some_device_token",
+            "another_device_token"
+        ],
+        "aps": {
+             "badge": 15,
+             "alert": "Hello from Urban Airship!",
+             "sound": "cat.caf"
+        }
+    },
+    {
+        "device_tokens": [
+            "yet_another_device_token"
+        ],
+        "aliases": [
+            "some_alias",
+            "another_alias"
+        ],
+        "aps": {
+            "badge": 12
+        }
+    }
+  ]
+  */
   def pushMany[T <: APS](messages: List[PushMessage[T]]): Box[String] = app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
     val req = pushReq / "batch" / "" << write(messages) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
   
+  // schedule_for should be a string here, not a list of strings? Though UA seems to allow a string in places where you'd otherwise have a list of one.
   def pushAll[T <: APS](message: PushMessage[T]): Box[String] = app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
     val req = pushReq / "broadcast" / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
@@ -125,8 +153,54 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   }) ?~ "App Master Secret Required"
   
   // delete scheduled with POST to https://go.urbanairship.com/api/push/scheduled/
+  /*
+  {
+    "cancel": [
+        "https://go.urbanairship.com/api/push/scheduled/XX",
+        "https://go.urbanairship.com/api/push/scheduled/XY"
+    ],
+    "cancel_aliases": [
+        "some_alias",
+        "another_alias"
+    ],
+    "cancel_device_tokens": [
+        "example_device_token",
+        "other_example_device_token"
+    ]
+  }
+  */
   
   // updated scheduled with https://go.urbanairship.com/api/push/scheduled/alias/<your alias>
+  /*
+  {
+    "alias": "some_alias",
+    "schedule_for": "2010-06-05 22:15:00",
+    "payload": {
+        "device_tokens": ["some_device_token"],
+        "aps": {
+            "alert": "Hello from the past!",
+            "sound": "cat.caf"
+        }
+    }
+  }
+  */
+  
+  // feedback service
+  // /api/device_tokens/feedback/?since=<timestamp>, where timestamp is ISO 8601 (e.g. 2009-06-01+13:00:00)
+  /*
+  [
+    {
+       "device_token": "1234123412341234123412341234123412341234123412341234123412341234",
+       "marked_inactive_on": "2009-06-22 10:05:00",
+       "alias": "bob"
+    },
+    {
+       "device_token": "ABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCD",
+       "marked_inactive_on": "2009-06-22 10:07:00",
+       "alias": null
+    }
+  ]
+  */
     
 /*
   def pushAll[T <: APS](message: PushMessage[T]): Box[String] = (for (
