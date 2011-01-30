@@ -25,6 +25,8 @@ object Device {
 
 case class DevicesPage(device_tokens_count: Int, device_tokens: List[Device], current_page: Int, num_pages: Int, active_device_tokens_count: Int)
 
+case class DevicesCount(device_tokens_count: Int, active_device_tokens_count: Int)
+
 abstract trait APS
 object APS {
   def apply(alert: String): APSString = APSString(alert, None, None)
@@ -96,6 +98,12 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
           })
         })
     })
+  }) ?~ "App Master Secret Required"
+  
+  def devices_count: Box[DevicesCount] = app_master_secret.flatMap(secret => {
+    import LiftJsonHelpers._
+    val req = devicesReq / "count" / "" as (app_token, secret)
+    Helpers.tryo(http(req ># (_.extract[DevicesCount])))
   }) ?~ "App Master Secret Required"
   
   def push[T <: APS](message: PushMessage[T]): Box[String] = app_master_secret.flatMap(secret => {
