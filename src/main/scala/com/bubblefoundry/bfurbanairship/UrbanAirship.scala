@@ -54,6 +54,27 @@ object PushMessage {
   def apply[T <: APS](device_tokens: List[String], schedule_for: List[java.util.Date], aps: T): PushMessage[T] = PushMessage(optionalList(device_tokens), None, None, optionalList(schedule_for), None, Some(aps))
 }
 
+case class ScheduledMessage[T <: APS](alias: Option[String], schedule_for: java.util.Date, payload: PushMessage[T])
+case class ScheduledPushes(scheduled_notifications: List[String])
+
+/*
+{
+    "cancel": [
+        "https://go.urbanairship.com/api/push/scheduled/XX",
+        "https://go.urbanairship.com/api/push/scheduled/XY"
+    ],
+    "cancel_aliases": [
+        "some_alias",
+        "another_alias"
+    ],
+    "cancel_device_tokens": [
+        "example_device_token",
+        "other_example_device_token"
+    ]
+  }
+*/
+case class DeleteScheduledMessages(cancel: List[String], cancel_aliases: List[String], cancel_device_tokens: List[String])
+
 case class HourlyStatistics(start: java.util.Date, messages: Int, android_messages: Int, bb_messages: Int)
 
 class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret: Box[String]) {  
@@ -64,6 +85,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
 
   lazy val devicesReq = apiReq / "device_tokens"
   lazy val feedbackReq = devicesReq / "feedback"
+  lazy val scheduledReq = pushReq / "scheduled"
   lazy val statisticsReq = pushReq / "stats"
   
   def this(app_token: String, app_secret: Option[String], app_master_secret: Option[String]) = {
@@ -138,10 +160,10 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     Helpers.tryo(http(req ># (_.extract[DevicesCount])))
   }) ?~ "App Master Secret Required"
   
-  def push[T <: APS](message: PushMessage[T]): Box[String] = app_master_secret.flatMap(secret => {
+  def push[T <: APS](message: PushMessage[T]): Box[ScheduledPushes  ] = app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
     val req = pushReq / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
-    Helpers.tryo(http(req as_str))
+    Helpers.tryo(http(req ># (json => json.extract[ScheduledPushes])))
   }) ?~ "App Master Secret Required"
   
   /*
@@ -183,6 +205,26 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     val req = pushReq / "broadcast" / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
+   
+  // updated scheduled with https://go.urbanairship.com/api/push/scheduled/alias/<your alias>
+  /*
+  {
+    "alias": "some_alias",
+    "schedule_for": "2010-06-05 22:15:00",
+    "payload": {
+        "device_tokens": ["some_device_token"],
+        "aps": {
+            "alert": "Hello from the past!",
+            "sound": "cat.caf"
+        }
+    }
+  }
+  */
+  def update_scheduled[T <: APS](alias: String, message: ScheduledMessage[T]): Box[String] =  app_master_secret.flatMap(secret => {
+    import LiftJsonHelpers._
+    val req = scheduledReq / "alias" / alias <<< write(message) as (app_token, secret) 
+    Helpers.tryo(http(req as_str))
+  }) ?~ "App Master Secret Required"
   
   // delete scheduled with POST to https://go.urbanairship.com/api/push/scheduled/
   /*
@@ -201,21 +243,11 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     ]
   }
   */
-  
-  // updated scheduled with https://go.urbanairship.com/api/push/scheduled/alias/<your alias>
-  /*
-  {
-    "alias": "some_alias",
-    "schedule_for": "2010-06-05 22:15:00",
-    "payload": {
-        "device_tokens": ["some_device_token"],
-        "aps": {
-            "alert": "Hello from the past!",
-            "sound": "cat.caf"
-        }
-    }
-  }
-  */
+  def delete_scheduled(cancel: DeleteScheduledMessages): Box[String] = app_master_secret.flatMap(secret => {
+    import LiftJsonHelpers._
+    val req = scheduledReq / "" << write(cancel) as (app_token, secret)
+    Helpers.tryo(http(req as_str))
+  }) ?~ "App Master Secret Required"
   
   def statistics(start: String, end: String): Box[List[HourlyStatistics]] = app_master_secret.flatMap(secret => {
     val req = statisticsReq <<? Map("start" -> start, "end" -> end) as (app_token, secret) 
