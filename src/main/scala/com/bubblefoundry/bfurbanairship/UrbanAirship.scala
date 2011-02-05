@@ -16,11 +16,11 @@ object LiftJsonHelpers {
 }
 
 case class Quiettime(start: String, end: String)
-case class Device(device_token: String, alias: Option[String], tags: Option[List[String]], badge: Option[Int], quiettime: Option[Quiettime], tz: Option[String], last_registration: Option[java.util.Date], active: Option[Boolean])
+case class Device(device_token: String, alias: Option[String], tags: Option[List[String]], badge: Option[Int], quiettime: Option[Quiettime], tz: Option[String], last_registration: Option[java.util.Date], active: Option[Boolean], marked_inactive_on: Option[java.util.Date])
 object Device {
-  def apply(device_token: String): Device = Device(device_token, None, None, None, None, None, None, None)
-  def apply(device_token: String, alias: String): Device = Device(device_token, Some(alias), None, None, None, None, None, None)
-  def apply(device_token: String, alias: Option[String], tags: Option[List[String]], badge: Option[Int], quiettime: Option[Quiettime], tz: Option[String]): Device = Device(device_token, alias, tags, badge, quiettime, tz, None, None)
+  def apply(device_token: String): Device = Device(device_token, None, None, None, None, None, None, None, None)
+  def apply(device_token: String, alias: String): Device = Device(device_token, Some(alias), None, None, None, None, None, None, None)
+  def apply(device_token: String, alias: Option[String], tags: Option[List[String]], badge: Option[Int], quiettime: Option[Quiettime], tz: Option[String]): Device = Device(device_token, alias, tags, badge, quiettime, tz, None, None, None)
 }
 
 case class DevicesPage(device_tokens_count: Int, device_tokens: List[Device], current_page: Int, num_pages: Int, active_device_tokens_count: Int)
@@ -57,6 +57,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   lazy val pushReq = apiReq / "push"
 
   lazy val devicesReq = apiReq / "device_tokens"
+  lazy val feedbackReq = devicesReq / "feedback"
   lazy val statisticsReq = pushReq / "stats"
   
   def this(app_token: String, app_secret: Option[String], app_master_secret: Option[String]) = {
@@ -99,6 +100,31 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
         })
     })
   }) ?~ "App Master Secret Required"
+  
+  // feedback service
+  // /api/device_tokens/feedback/?since=<timestamp>, where timestamp is ISO 8601 (e.g. 2009-06-01+13:00:00)
+  /*
+  [
+    {
+       "device_token": "1234123412341234123412341234123412341234123412341234123412341234",
+       "marked_inactive_on": "2009-06-22 10:05:00",
+       "alias": "bob"
+    },
+    {
+       "device_token": "ABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCD",
+       "marked_inactive_on": "2009-06-22 10:07:00",
+       "alias": null
+    }
+  ]
+  */
+  def feedback(since: String): Box[List[Device]] =  app_master_secret.flatMap(secret => {
+    val req = feedbackReq / "" <<? Map("since" -> since) as (app_token, secret) 
+    Helpers.tryo(http(req ># (json => {
+      import LiftJsonHelpers._
+      json.children.map(_.extract[Device])
+    })))
+  }) ?~ "App Master Secret Required"
+  
   
   def devices_count: Box[DevicesCount] = app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
@@ -185,38 +211,6 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   }
   */
   
-  // feedback service
-  // /api/device_tokens/feedback/?since=<timestamp>, where timestamp is ISO 8601 (e.g. 2009-06-01+13:00:00)
-  /*
-  [
-    {
-       "device_token": "1234123412341234123412341234123412341234123412341234123412341234",
-       "marked_inactive_on": "2009-06-22 10:05:00",
-       "alias": "bob"
-    },
-    {
-       "device_token": "ABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCD",
-       "marked_inactive_on": "2009-06-22 10:07:00",
-       "alias": null
-    }
-  ]
-  */
-    
-/*
-  def pushAll[T <: APS](message: PushMessage[T]): Box[String] = (for (
-    secret <- app_master_secret ?~! "App Master Secret Required"
-    message <- Full(message) ?~! ""
-  ) yield {
-    Helpers.tryo(http(req as_str))
-  }).flatMap(resp => resp)
-  
-  app_master_secret.flatMap(secret => {
-    import LiftJsonHelpers._
-    val req = pushReq / "broadcast" / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
-    Helpers.tryo(http(req as_str))
-  }) ?~ "App Master Secret Required"
-*/
-
   def statistics(start: String, end: String): Box[List[HourlyStatistics]] = app_master_secret.flatMap(secret => {
     val req = statisticsReq <<? Map("start" -> start, "end" -> end) as (app_token, secret) 
     Helpers.tryo(http(req ># (json => {
