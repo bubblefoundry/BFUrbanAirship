@@ -245,6 +245,11 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
   
+  def delete_scheduled(alias: String): Box[Unit] = app_master_secret.flatMap(secret => {
+    val req = scheduledReq.DELETE / "alias" / alias as (app_token, secret)
+    Helpers.tryo(http(req >|))
+  }) ?~ "App Master Secret Required"
+  
   def statistics(start: String, end: String): Box[List[HourlyStatistics]] = app_master_secret.flatMap(secret => {
     val req = statisticsReq <<? Map("start" -> start, "end" -> end) as (app_token, secret) 
     Helpers.tryo(http(req ># (json => {
