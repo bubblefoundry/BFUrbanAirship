@@ -74,7 +74,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   // GET device 
   
   // get device tokens
-  def devices: Box[Iterator[Device]] = app_master_secret.flatMap(secret => {
+  def devices: Box[Stream[Device]] = app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
     
     def getPage(page: Int) = {
@@ -88,13 +88,13 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     val page1 = getPage(1)
     // within its box
     page1.map(page => {
-      // turn the first page's List[Device] into an Iterator[Device]
-      page.device_tokens.toIterator ++ ({
-          // then for any additional pages (Iterator.range(2, 1) == Iterator.empty)
-          // take the page and be ready to reduce down our inner Iterator
-          Iterator.range(2, page.num_pages).flatMap(p => {
-            // get the page, then just its List[Device], escape the Box, to an Iterator
-            getPage(p).map(_.device_tokens).getOrElse(Nil).toIterator
+      // turn the first page's List[Device] into an Stream[Device]
+      page.device_tokens.toStream ++ ({
+          // then for any additional pages (Stream.range(2, 1) == Stream.empty)
+          // take the page and be ready to reduce down our inner Stream
+          Stream.range(2, page.num_pages).flatMap(p => {
+            // get the page, then just its List[Device], escape the Box, to an Stream
+            getPage(p).map(_.device_tokens).getOrElse(Nil).toStream
           })
         })
     })
