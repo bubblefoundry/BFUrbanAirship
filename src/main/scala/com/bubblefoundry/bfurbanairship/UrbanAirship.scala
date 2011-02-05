@@ -47,6 +47,8 @@ object APSDict {
   def apply(alert: Map[String, Any], badge: String, sound: String): APSDict = APSDict(alert, Some(badge), Some(sound))
 }
 
+
+// like with APS, allow two types of PushMessages: ones with a List of Dates and ones with a List of alias + Date objects
 case class PushMessage[T <: APS](device_tokens: Option[List[String]], aliases: Option[List[String]], tags: Option[List[String]], schedule_for: Option[List[java.util.Date]], exclude_tokens: Option[List[String]], aps: Option[T])
 object PushMessage {
   private def optionalList[T](l: List[T]) = if (!l.isEmpty) Some(l) else None
@@ -130,21 +132,6 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   }) ?~ "App Master Secret Required"
   
   // feedback service
-  // /api/device_tokens/feedback/?since=<timestamp>, where timestamp is ISO 8601 (e.g. 2009-06-01+13:00:00)
-  /*
-  [
-    {
-       "device_token": "1234123412341234123412341234123412341234123412341234123412341234",
-       "marked_inactive_on": "2009-06-22 10:05:00",
-       "alias": "bob"
-    },
-    {
-       "device_token": "ABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCDABCD",
-       "marked_inactive_on": "2009-06-22 10:07:00",
-       "alias": null
-    }
-  ]
-  */
   def feedback(since: String): Box[List[Device]] =  app_master_secret.flatMap(secret => {
     val req = feedbackReq / "" <<? Map("since" -> since) as (app_token, secret) 
     Helpers.tryo(http(req ># (json => {
@@ -256,5 +243,46 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
       json.children.map(_.extract[HourlyStatistics])
     })))
   }) ?~ "App Master Secret required"
-     
+  
+  /* TAGS */
+  
+  /*
+    {
+      "tags": [
+          "tag1",
+          "some_tag",
+          "portland_or"
+      ]
+    }
+  */
+  // /api/tags/
+  
+  // create tag w/o association to device
+  /* HTTP PUT to /api/tags/<tag> */
+  
+  // In order to entirely remove a tag, send an HTTP DELETE to /api/tags/<tag>. The status code on success will be 204.
+  // If the tag has already been removed, the status code will be 404.
+  
+  // add or remove devices on tags
+  /*
+    HTTP POST to /api/tags/<tag> with a content type of application/json and a JSON payload will add or remove device tokens from that tag. If the tag doesn’t exist, it will be created.
+    Example:    
+    {
+        "device_tokens": {
+            "add": [
+                "device_token_1_to_add",
+                "device_token_2_to_add"
+            ],
+            "remove": [
+                "device_token_to_remove"
+            ]
+        }
+    }
+  */
+  
+  // HTTP GET to /api/device_tokens/<device_token>/tags/
+  
+  // HTTP PUT to /api/device_tokens/<device_token>/tags/<tag>
+  
+  // HTTP DELETE to /api/device_tokens/<device_token>/tags/<tag>
 }
