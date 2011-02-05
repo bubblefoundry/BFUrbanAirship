@@ -49,14 +49,23 @@ object APSDict {
 
 
 // like with APS, allow two types of PushMessages: ones with a List of Dates and ones with a List of alias + Date objects
-case class PushMessage[T <: APS](device_tokens: Option[List[String]], aliases: Option[List[String]], tags: Option[List[String]], schedule_for: Option[List[java.util.Date]], exclude_tokens: Option[List[String]], aps: Option[T])
-object PushMessage {
+abstract trait PushMessage[T <: APS]
+case class SimplePushMessage[T <: APS](device_tokens: Option[List[String]], aliases: Option[List[String]], tags: Option[List[String]], schedule_for: Option[List[java.util.Date]], exclude_tokens: Option[List[String]], aps: Option[T]) extends PushMessage[T]
+object SimplePushMessage {
   private def optionalList[T](l: List[T]) = if (!l.isEmpty) Some(l) else None
-  def apply[T <: APS](device_tokens: List[String], aliases: List[String], tags: List[String], schedule_for: List[java.util.Date], exclude_tokens: List[String], aps: T): PushMessage[T] = PushMessage(optionalList(device_tokens), optionalList(aliases), optionalList(tags), optionalList(schedule_for), optionalList(exclude_tokens), Some(aps))
-  def apply[T <: APS](device_tokens: List[String], schedule_for: List[java.util.Date], aps: T): PushMessage[T] = PushMessage(optionalList(device_tokens), None, None, optionalList(schedule_for), None, Some(aps))
+  def apply[T <: APS](device_tokens: List[String], aliases: List[String], tags: List[String], schedule_for: List[java.util.Date], exclude_tokens: List[String], aps: T): SimplePushMessage[T] = SimplePushMessage(optionalList(device_tokens), optionalList(aliases), optionalList(tags), optionalList(schedule_for), optionalList(exclude_tokens), Some(aps))
+  def apply[T <: APS](device_tokens: List[String], schedule_for: List[java.util.Date], aps: T): SimplePushMessage[T] = SimplePushMessage(optionalList(device_tokens), None, None, optionalList(schedule_for), None, Some(aps))
+}
+case class AliasedSchedule(alias: String, scheduled_time: java.util.Date)
+case class AliasedPushMessage[T <: APS](device_tokens: Option[List[String]], aliases: Option[List[String]], tags: Option[List[String]], schedule_for: Option[List[AliasedSchedule]], exclude_tokens: Option[List[String]], aps: Option[T]) extends PushMessage[T]
+object AliasedPushMessage {
+  private def optionalList[T](l: List[T]) = if (!l.isEmpty) Some(l) else None
+  def apply[T <: APS](device_tokens: List[String], aliases: List[String], tags: List[String], schedule_for: List[AliasedSchedule], exclude_tokens: List[String], aps: T): AliasedPushMessage[T] = AliasedPushMessage(optionalList(device_tokens), optionalList(aliases), optionalList(tags), optionalList(schedule_for), optionalList(exclude_tokens), Some(aps))
+  def apply[T <: APS](device_tokens: List[String], schedule_for: List[AliasedSchedule], aps: T): AliasedPushMessage[T] = AliasedPushMessage(optionalList(device_tokens), None, None, optionalList(schedule_for), None, Some(aps))
 }
 
-case class ScheduledMessage[T <: APS](alias: Option[String], schedule_for: java.util.Date, payload: PushMessage[T])
+
+case class ScheduledMessage[M <: PushMessage[_]](alias: Option[String], schedule_for: java.util.Date, payload: M)
 case class ScheduledPushes(scheduled_notifications: List[String])
 
 /*
@@ -147,7 +156,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     Helpers.tryo(http(req ># (_.extract[DevicesCount])))
   }) ?~ "App Master Secret Required"
   
-  def push[T <: APS](message: PushMessage[T]): Box[ScheduledPushes  ] = app_master_secret.flatMap(secret => {
+  def push[M <: PushMessage[_]](message: M): Box[ScheduledPushes] = app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
     val req = pushReq / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req ># (json => json.extract[ScheduledPushes])))
@@ -180,14 +189,14 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     }
   ]
   */
-  def pushMany[T <: APS](messages: List[PushMessage[T]]): Box[String] = app_master_secret.flatMap(secret => {
+  def pushMany[M <: PushMessage[_]](messages: List[M]): Box[String] = app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
     val req = pushReq / "batch" / "" << write(messages) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
   
   // schedule_for should be a string here, not a list of strings? Though UA seems to allow a string in places where you'd otherwise have a list of one.
-  def pushAll[T <: APS](message: PushMessage[T]): Box[String] = app_master_secret.flatMap(secret => {
+  def pushAll[M <: PushMessage[_]](message: M): Box[String] = app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
     val req = pushReq / "broadcast" / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req as_str))
@@ -207,7 +216,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     }
   }
   */
-  def update_scheduled[T <: APS](alias: String, message: ScheduledMessage[T]): Box[String] =  app_master_secret.flatMap(secret => {
+  def update_scheduled[M <: PushMessage[_]](alias: String, message: ScheduledMessage[M]): Box[String] =  app_master_secret.flatMap(secret => {
     import LiftJsonHelpers._
     val req = scheduledReq / "alias" / alias <<< write(message) as (app_token, secret) 
     Helpers.tryo(http(req as_str))
