@@ -49,8 +49,9 @@ object APSDict {
 
 case class PushMessage[T <: APS](device_tokens: Option[List[String]], aliases: Option[List[String]], tags: Option[List[String]], schedule_for: Option[List[java.util.Date]], exclude_tokens: Option[List[String]], aps: Option[T])
 object PushMessage {
-  def apply[T <: APS](device_tokens: List[String], aliases: List[String], tags: List[String], schedule_for: List[java.util.Date], exclude_tokens: List[String], aps: T): PushMessage[T] = PushMessage(Some(device_tokens), Some(aliases), Some(tags), Some(schedule_for), Some(exclude_tokens), Some(aps))
-  def apply[T <: APS](device_tokens: List[String], schedule_for: List[java.util.Date], aps: T): PushMessage[T] = PushMessage(Some(device_tokens), None, None, Some(schedule_for), None, Some(aps))
+  private def optionalList[T](l: List[T]) = if (!l.isEmpty) Some(l) else None
+  def apply[T <: APS](device_tokens: List[String], aliases: List[String], tags: List[String], schedule_for: List[java.util.Date], exclude_tokens: List[String], aps: T): PushMessage[T] = PushMessage(optionalList(device_tokens), optionalList(aliases), optionalList(tags), optionalList(schedule_for), optionalList(exclude_tokens), Some(aps))
+  def apply[T <: APS](device_tokens: List[String], schedule_for: List[java.util.Date], aps: T): PushMessage[T] = PushMessage(optionalList(device_tokens), None, None, optionalList(schedule_for), None, Some(aps))
 }
 
 case class HourlyStatistics(start: java.util.Date, messages: Int, android_messages: Int, bb_messages: Int)
