@@ -107,11 +107,19 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
     import LiftJsonHelpers._
     val req = devicesReq / device.device_token <<< write(device) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req ># (json => {
-      json.extract[Device]
+      json.extract[Device] // then update the returned object with its tags, since it apparently doesn't return them?
     })))
   }) ?~ "App Secret required"
   
   // GET device 
+  def device(device_token: String): Box[Device] = app_master_secret.flatMap(secret => {
+    import LiftJsonHelpers._
+    val req = devicesReq / device_token as (app_token, secret)
+    Helpers.tryo(http(req ># (json => {
+      json.extract[Device]
+    })))    
+  }) ?~ "App Master Secret Required"
+  def device(d: Device): Box[Device] = device(d.device_token)
   
   // get device tokens
   def devices: Box[Stream[Device]] = app_master_secret.flatMap(secret => {
