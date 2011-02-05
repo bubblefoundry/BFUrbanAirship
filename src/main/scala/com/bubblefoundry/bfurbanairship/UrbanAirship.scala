@@ -47,7 +47,6 @@ object APSDict {
   def apply(alert: Map[String, Any], badge: String, sound: String): APSDict = APSDict(alert, Some(badge), Some(sound))
 }
 
-
 // like with APS, allow two types of PushMessages: ones with a List of Dates and ones with a List of alias + Date objects
 abstract trait PushMessage[T <: APS]
 case class SimplePushMessage[T <: APS](device_tokens: Option[List[String]], aliases: Option[List[String]], tags: Option[List[String]], schedule_for: Option[List[java.util.Date]], exclude_tokens: Option[List[String]], aps: Option[T]) extends PushMessage[T]
@@ -99,12 +98,13 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   lazy val scheduledReq = pushReq / "scheduled"
   lazy val statisticsReq = pushReq / "stats"
   
+  import LiftJsonHelpers._
+  
   def this(app_token: String, app_secret: Option[String], app_master_secret: Option[String]) = {
     this(app_token, Box(app_secret), Box(app_master_secret))
   }
 
   def register_device(device: Device): Box[Device] = app_secret.flatMap(secret => {
-    import LiftJsonHelpers._
     val req = devicesReq / device.device_token <<< write(device) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req ># (json => {
       json.extract[Device] // then update the returned object with its tags, since it apparently doesn't return them?
@@ -113,7 +113,6 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   
   // GET device 
   def device(device_token: String): Box[Device] = app_master_secret.flatMap(secret => {
-    import LiftJsonHelpers._
     val req = devicesReq / device_token as (app_token, secret)
     Helpers.tryo(http(req ># (json => {
       json.extract[Device]
@@ -123,8 +122,6 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   
   // get device tokens
   def devices: Box[Stream[Device]] = app_master_secret.flatMap(secret => {
-    import LiftJsonHelpers._
-    
     def getPage(page: Int) = {
       val req = devicesReq / "" <<? Map("page" -> page) as (app_token, secret)
       Helpers.tryo(http(req ># (json => {
@@ -152,20 +149,17 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   def feedback(since: String): Box[List[Device]] =  app_master_secret.flatMap(secret => {
     val req = feedbackReq / "" <<? Map("since" -> since) as (app_token, secret) 
     Helpers.tryo(http(req ># (json => {
-      import LiftJsonHelpers._
       json.children.map(_.extract[Device])
     })))
   }) ?~ "App Master Secret Required"
   
   
   def devices_count: Box[DevicesCount] = app_master_secret.flatMap(secret => {
-    import LiftJsonHelpers._
     val req = devicesReq / "count" / "" as (app_token, secret)
     Helpers.tryo(http(req ># (_.extract[DevicesCount])))
   }) ?~ "App Master Secret Required"
   
   def push[M <: PushMessage[_]](message: M): Box[ScheduledPushes] = app_master_secret.flatMap(secret => {
-    import LiftJsonHelpers._
     val req = pushReq / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req ># (json => json.extract[ScheduledPushes])))
   }) ?~ "App Master Secret Required"
@@ -198,14 +192,12 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   ]
   */
   def pushMany[M <: PushMessage[_]](messages: List[M]): Box[String] = app_master_secret.flatMap(secret => {
-    import LiftJsonHelpers._
     val req = pushReq / "batch" / "" << write(messages) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
   
   // schedule_for should be a string here, not a list of strings? Though UA seems to allow a string in places where you'd otherwise have a list of one.
   def pushAll[M <: PushMessage[_]](message: M): Box[String] = app_master_secret.flatMap(secret => {
-    import LiftJsonHelpers._
     val req = pushReq / "broadcast" / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
@@ -225,7 +217,6 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   }
   */
   def update_scheduled[M <: PushMessage[_]](alias: String, message: ScheduledMessage[M]): Box[String] =  app_master_secret.flatMap(secret => {
-    import LiftJsonHelpers._
     val req = scheduledReq / "alias" / alias <<< write(message) as (app_token, secret) 
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
@@ -248,7 +239,6 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   }
   */
   def delete_scheduled(cancel: DeleteScheduledMessages): Box[String] = app_master_secret.flatMap(secret => {
-    import LiftJsonHelpers._
     val req = scheduledReq / "" << write(cancel) as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
@@ -261,7 +251,6 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   def statistics(start: String, end: String): Box[List[HourlyStatistics]] = app_master_secret.flatMap(secret => {
     val req = statisticsReq <<? Map("start" -> start, "end" -> end) as (app_token, secret) 
     Helpers.tryo(http(req ># (json => {
-      import LiftJsonHelpers._
       json.children.map(_.extract[HourlyStatistics])
     })))
   }) ?~ "App Master Secret required"
