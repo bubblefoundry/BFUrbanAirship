@@ -11,7 +11,12 @@ import net.liftweb.util.Helpers
 
 object LiftJsonHelpers {
   implicit val formats = new net.liftweb.json.DefaultFormats {
-    override def dateFormatter = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    override def dateFormatter = {
+      val format = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+      // ensure we're using UTC as our output
+      format.setTimeZone(java.util.TimeZone.getTimeZone("UTC"))
+      format
+    }
   }
 }
 
