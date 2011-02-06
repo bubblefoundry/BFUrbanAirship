@@ -35,16 +35,17 @@ case class DevicesCount(device_tokens_count: Int, active_device_tokens_count: In
 abstract trait APS
 object APS {
   def apply(alert: String): APSString = APSString(alert, None, None)
-  def apply(alert: Map[String, Any]): APSDict = APSDict(alert, None, None)
+  def apply(alert: APSAlert): APSDict = APSDict(alert, None, None)
 }
 // the badge string can be: "auto", "+1", "-1", or any valid Int. Its absence removes any existing badge.
 case class APSString(alert: String, badge: Option[String], sound: Option[String]) extends APS
 object APSString {
   def apply(alert: String, badge: String, sound: String): APSString = APSString(alert, Some(badge), Some(sound))
 }
-case class APSDict(alert: Map[String, Any], badge: Option[String], sound: Option[String]) extends APS
+case class APSAlert(body: Option[String], `action-loc-key`: Option[String], `loc-key`: Option[String], `loc-args`: Option[List[String]], `launch-image`: Option[String])
+case class APSDict(alert: APSAlert, badge: Option[String], sound: Option[String]) extends APS
 object APSDict {
-  def apply(alert: Map[String, Any], badge: String, sound: String): APSDict = APSDict(alert, Some(badge), Some(sound))
+  def apply(alert: APSAlert, badge: String, sound: String): APSDict = APSDict(alert, Some(badge), Some(sound))
 }
 
 // like with APS, allow two types of PushMessages: ones with a List of Dates and ones with a List of alias + Date objects
