@@ -65,7 +65,7 @@ object AliasedPushMessage {
 }
 
 
-case class ScheduledMessage[M <: PushMessage[_]](alias: Option[String], schedule_for: java.util.Date, payload: M)
+case class ScheduledMessage[M <: PushMessage[_]](alias: String, schedule_for: java.util.Date, payload: M)
 case class ScheduledPushes(scheduled_notifications: List[String])
 
 /*
