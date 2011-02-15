@@ -89,7 +89,7 @@ case class DeleteScheduledMessages(cancel: List[String], cancel_aliases: List[St
 case class HourlyStatistics(start: java.util.Date, messages: Int, android_messages: Int, bb_messages: Int)
 
 class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret: Box[String]) {  
-  lazy val http = new Http
+  def http = new dispatch.gae.Http
   lazy val urbanairshipReq = :/("go.urbanairship.com").secure
   lazy val apiReq = urbanairshipReq / "api"
   lazy val pushReq = apiReq / "push"
@@ -124,7 +124,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   // get device tokens
   def devices: Box[Stream[Device]] = app_master_secret.flatMap(secret => {
     def getPage(page: Int) = {
-      val req = devicesReq / "" <<? Map("page" -> page) as (app_token, secret)
+      val req = devicesReq / "" <<? Map("page" -> page.toString) as (app_token, secret)
       Helpers.tryo(http(req ># (json => {
         json.extract[DevicesPage]
       })))
@@ -161,7 +161,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   }) ?~ "App Master Secret Required"
   
   def push[M <: PushMessage[_]](message: M): Box[ScheduledPushes] = app_master_secret.flatMap(secret => {
-    val req = pushReq / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
+    val req = pushReq / "" << (write(message), "application/json") as (app_token, secret)
     Helpers.tryo(http(req ># (json => json.extract[ScheduledPushes])))
   }) ?~ "App Master Secret Required"
   
@@ -193,13 +193,13 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   ]
   */
   def pushMany[M <: PushMessage[_]](messages: List[M]): Box[String] = app_master_secret.flatMap(secret => {
-    val req = pushReq / "batch" / "" << write(messages) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
+    val req = pushReq / "batch" / "" << (write(messages), "application/json") as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
   
   // schedule_for should be a string here, not a list of strings? Though UA seems to allow a string in places where you'd otherwise have a list of one.
   def pushAll[M <: PushMessage[_]](message: M): Box[String] = app_master_secret.flatMap(secret => {
-    val req = pushReq / "broadcast" / "" << write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
+    val req = pushReq / "broadcast" / "" << (write(message), "application/json") as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
    
@@ -218,7 +218,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   }
   */
   def update_scheduled[M <: PushMessage[_]](alias: String, message: ScheduledMessage[M]): Box[String] =  app_master_secret.flatMap(secret => {
-    val req = scheduledReq / "alias" / alias <<< write(message) as (app_token, secret) 
+    val req = scheduledReq / "alias" / alias <<< write(message) as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
   
@@ -240,7 +240,7 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   }
   */
   def delete_scheduled(cancel: DeleteScheduledMessages): Box[String] = app_master_secret.flatMap(secret => {
-    val req = scheduledReq / "" << write(cancel) as (app_token, secret)
+    val req = scheduledReq / "" << (write(cancel), "application/json") as (app_token, secret)
     Helpers.tryo(http(req as_str))
   }) ?~ "App Master Secret Required"
   
