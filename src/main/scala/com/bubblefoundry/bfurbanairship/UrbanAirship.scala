@@ -88,8 +88,8 @@ case class DeleteScheduledMessages(cancel: List[String], cancel_aliases: List[St
 
 case class HourlyStatistics(start: java.util.Date, messages: Int, android_messages: Int, bb_messages: Int)
 
-class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret: Box[String]) {  
-  def http = new dispatch.gae.Http
+class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret: Box[String], appengine: Boolean = false) {  
+  def http = if (appengine) new dispatch.gae.Http else new Http
   lazy val urbanairshipReq = :/("go.urbanairship.com").secure
   lazy val apiReq = urbanairshipReq / "api"
   lazy val pushReq = apiReq / "push"
