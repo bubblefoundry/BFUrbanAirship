@@ -2,10 +2,11 @@ package com.bubblefoundry.bfurbanairship
 
 import dispatch._
 import dispatch.liftjson.Js._
+import net.liftweb.json.parse
 import net.liftweb.json.JsonAST._
 import net.liftweb.json.Serialization.write
 
-import net.liftweb.common.Box
+import net.liftweb.common.{Box, Failure, Full}
 import net.liftweb.util.Helpers
 
 
@@ -219,9 +220,13 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   */
   def update_scheduled[M <: PushMessage[_]](alias: String, message: ScheduledMessage[M]): Box[ScheduledPushes] =  app_master_secret.flatMap(secret => {
     val req = scheduledReq / "alias" / alias <<< write(message) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
-    Helpers.tryo(http(req ># (json => {
-      json.extract[ScheduledPushes]
-    })))
+    // ugly hack because UA seems to always be returning "OK" these days
+    Helpers.tryo(http(req as_str)) match {
+      case Full("OK") => Full(ScheduledPushes(List("https://go.urbanairship.com/api/push/scheduled/" + alias)))
+      case Full(jsonString) => Helpers.tryo(parse(jsonString).extract[ScheduledPushes])
+      case f @ Failure(_, _, _) => f
+      case f => Failure(f.toString)
+    }
   }) ?~ "App Master Secret Required"
   
   // delete scheduled with POST to https://go.urbanairship.com/api/push/scheduled/
