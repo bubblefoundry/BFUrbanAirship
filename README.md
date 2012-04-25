@@ -16,7 +16,7 @@ BFUrbanAirship is a Scala library for the [Urban Airship](http://www.urbanairshi
 
 ## Getting the library
 
-Currently you'll need to checkout the source code and build it using [sbt](https://github.com/harrah/xsbt/wiki) **0.7.4**. `sbt publish-local` should do the trick.
+Currently you'll need to checkout the source code and build it using [sbt](https://github.com/harrah/xsbt/wiki) **0.11.2**. `sbt publish-local` should do the trick.
 
 ## TODO
 

@@ -1,7 +1,6 @@
 package com.bubblefoundry.bfurbanairship
 
 import dispatch._
-import dispatch.liftjson.Js._
 import net.liftweb.json.parse
 import net.liftweb.json.JsonAST._
 import net.liftweb.json.Serialization.write
@@ -108,17 +107,17 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
 
   def register_device(device: Device): Box[Device] = app_secret.flatMap(secret => {
     val req = devicesReq / device.device_token <<< write(device) <:< Map("Content-Type" -> "application/json") as (app_token, secret)
-    Helpers.tryo(http(req ># (json => {
-      json.extract[Device] // then update the returned object with its tags, since it apparently doesn't return them?
-    })))
+    Helpers.tryo(http(req >- (jsonStr => 
+      parse(jsonStr).extract[Device] // then update the returned object with its tags, since it apparently doesn't return them?
+    )))
   }) ?~ "App Secret required"
   
   // GET device 
   def device(device_token: String): Box[Device] = app_master_secret.flatMap(secret => {
     val req = devicesReq / device_token as (app_token, secret)
-    Helpers.tryo(http(req ># (json => {
-      json.extract[Device]
-    })))    
+    Helpers.tryo(http(req >- (jsonStr => 
+      parse(jsonStr).extract[Device]
+    )))    
   }) ?~ "App Master Secret Required"
   def device(d: Device): Box[Device] = device(d.device_token)
   
@@ -126,9 +125,9 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   def devices: Box[Stream[Device]] = app_master_secret.flatMap(secret => {
     def getPage(page: Int) = {
       val req = devicesReq / "" <<? Map("page" -> page.toString) as (app_token, secret)
-      Helpers.tryo(http(req ># (json => {
-        json.extract[DevicesPage]
-      })))
+      Helpers.tryo(http(req >- (jsonStr => 
+        parse(jsonStr).extract[DevicesPage]
+      )))
     }
     
     // get the first page
@@ -150,20 +149,24 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   // feedback service
   def feedback(since: String): Box[List[Device]] =  app_master_secret.flatMap(secret => {
     val req = feedbackReq / "" <<? Map("since" -> since) as (app_token, secret) 
-    Helpers.tryo(http(req ># (json => {
-      json.children.map(_.extract[Device])
-    })))
+    Helpers.tryo(http(req >- (jsonStr => 
+      parse(jsonStr).children.map(_.extract[Device])
+    )))
   }) ?~ "App Master Secret Required"
   
   
   def devices_count: Box[DevicesCount] = app_master_secret.flatMap(secret => {
     val req = devicesReq / "count" / "" as (app_token, secret)
-    Helpers.tryo(http(req ># (_.extract[DevicesCount])))
+    Helpers.tryo(http(req >- (jsonStr => 
+      parse(jsonStr).extract[DevicesCount]
+    )))
   }) ?~ "App Master Secret Required"
   
   def push[M <: PushMessage[_]](message: M): Box[ScheduledPushes] = app_master_secret.flatMap(secret => {
     val req = pushReq / "" << (write(message), "application/json") as (app_token, secret)
-    Helpers.tryo(http(req ># (json => json.extract[ScheduledPushes])))
+    Helpers.tryo(http(req >- (jsonStr =>
+      parse(jsonStr).extract[ScheduledPushes]
+    )))
   }) ?~ "App Master Secret Required"
   
   /*
@@ -258,9 +261,9 @@ class UrbanAirship(app_token: String, app_secret: Box[String], app_master_secret
   
   def statistics(start: String, end: String): Box[List[HourlyStatistics]] = app_master_secret.flatMap(secret => {
     val req = statisticsReq <<? Map("start" -> start, "end" -> end) as (app_token, secret) 
-    Helpers.tryo(http(req ># (json => {
-      json.children.map(_.extract[HourlyStatistics])
-    })))
+    Helpers.tryo(http(req >- (jsonStr => 
+      parse(jsonStr).children.map(_.extract[HourlyStatistics])
+    )))
   }) ?~ "App Master Secret required"
   
   /* TAGS */
